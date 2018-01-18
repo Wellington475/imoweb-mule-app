@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:json="http://www.mulesoft.org/schema/mule/json" xmlns:context="http://www.springframework.org/schema/context" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/apikit" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:spring="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/apikit http://www.mulesoft.org/schema/mule/apikit/current/mule-apikit.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-current.xsd
+http://www.mulesoft.org/schema/mule/json http://www.mulesoft.org/schema/mule/json/current/mule-json.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+    <http:listener-config name="api-imowebcom-httpListenerConfig" host="${http.host}" port="${http.port}" doc:name="HTTP Listener Configuration"/>
+    <apikit:config name="api-imowebcom-config" raml="api-imowebcom.raml" consoleEnabled="false" doc:name="Router"/>
+    <db:mysql-config name="MySQL_Configuration" host="${mysql.host}" port="${mysql.port}" user="${mysql.user}" password="${mysql.password}" database="${mysql.database}" doc:name="MySQL Configuration"/>
+    <context:property-placeholder location="commons.properties,${mule.env}.properties"/>
+    <flow name="api-imowebcom-main">
+        <http:listener config-ref="api-imowebcom-httpListenerConfig" path="/api/*" doc:name="HTTP"/>
+        <apikit:router config-ref="api-imowebcom-config" doc:name="APIkit Router"/>
+        <exception-strategy ref="api-imowebcom-apiKitGlobalExceptionMapping" doc:name="Reference Exception Strategy"/>
+    </flow>
+    <flow name="api-imowebcom-console">
+        <http:listener config-ref="api-imowebcom-httpListenerConfig" path="/console/*" doc:name="HTTP"/>
+        <apikit:console config-ref="api-imowebcom-config" doc:name="APIkit Console"/>
+    </flow>
+    <flow name="get:/houses:api-imowebcom-config">
+        <expression-component doc:name="Filters"><![CDATA[flowVars.whereNeighborhood = (message.inboundProperties.'http.query.params'.neighborhood != null) ? 'WHERE neighborhood LIKE "%' + message.inboundProperties.'http.query.params'.neighborhood + '%"' : '';
+
+flowVars.whereCity = (message.inboundProperties.'http.query.params'.city != null) ? 'WHERE city LIKE "%' + message.inboundProperties.'http.query.params'.city + '%"' : '';
+
+flowVars.whereTitle = (message.inboundProperties.'http.query.params'.title != null) ? 'WHERE title LIKE "%' + message.inboundProperties.'http.query.params'.title + '%"' : '';
+
+flowVars.wherePrice = (message.inboundProperties.'http.query.params'.price != null) ? 'WHERE price LIKE "%' + message.inboundProperties.'http.query.params'.price + '%"' : '';
+
+flowVars.filters = flowVars.whereNeighborhood + ' ' + flowVars.whereCity + ' ' + flowVars.whereTitle + ' ' + flowVars.wherePrice;
+]]></expression-component>
+        <expression-component doc:name="Orderable"><![CDATA[flowVars.sort= (message.inboundProperties.'http.query.params'.sort != null) ? message.inboundProperties.'http.query.params'.sort  : 'title';
+
+flowVars.sortDirection =  (message.inboundProperties.'http.query.params'.sortDirection != null) ? message.inboundProperties.'http.query.params'.sortDirection : 'asc';
+
+flowVars.order = 'ORDER BY '+ flowVars.sort+ ' ' + flowVars.sortDirection;]]></expression-component>
+        <expression-component doc:name="Pagination"><![CDATA[flowVars.offset = (message.inboundProperties.'http.query.params'.offset != null) ? message.inboundProperties.'http.query.params'.offset - 1 : 0;
+
+flowVars.limit = (message.inboundProperties.'http.query.params'.limit != null) ? message.inboundProperties.'http.query.params'.limit : 10;
+
+flowVars.paged = 'LIMIT '+flowVars.offset+', '+flowVars.limit;]]></expression-component>
+        <db:select config-ref="MySQL_Configuration" doc:name="Select All House">
+            <db:dynamic-query><![CDATA[SELECT * FROM houses #[flowVars.filters] #[flowVars.order] #[flowVars.paged]]]></db:dynamic-query>
+        </db:select>
+        <choice doc:name="Cached?">
+            <when expression="#[payload.hashCode() == message.inboundProperties.'If-None-Match']">
+                <set-property propertyName="ETag" value="#[payload.hashCode()]" doc:name="Set ETag in Header"/>
+                <set-property propertyName="http.status" value="#[304]" doc:name="Set Status Code"/>
+            </when>
+            <otherwise>
+                <set-variable variableName="copyPayload" value="#[payload]" doc:name="Copy Payload"/>
+                <json:object-to-json-transformer encoding="UTF-8" mimeType="application/json" doc:name="Object to JSON"/>
+                <set-property propertyName="ETag" value="#[flowVars.copyPayload.hashCode()]" doc:name="Set ETag in Header"/>
+                <set-payload value="{   &quot;houses&quot;: #[payload]   }" encoding="UTF-8" mimeType="application/json" doc:name="Set Payload"/>
+            </otherwise>
+        </choice>
+    </flow>
+    <flow name="get:/houses/{houseId}:api-imowebcom-config">
+        <db:select config-ref="MySQL_Configuration" doc:name="Select Specific House">
+            <db:parameterized-query><![CDATA[SELECT * FROM houses WHERE id=#[flowVars.houseId]]]></db:parameterized-query>
+        </db:select>
+        <choice doc:name="Cached?">
+            <when expression="#[payload.hashCode() == message.inboundProperties.'If-None-Match']">
+                <set-property propertyName="ETag" value="#[payload.hashCode()]" doc:name="Set ETag in Header"/>
+                <set-property propertyName="http.status" value="#[304]" doc:name="Set Status Code"/>
+            </when>
+            <otherwise>
+                <set-variable variableName="copyPayload" value="#[payload]" doc:name="Copy Payload"/>
+                <validation:validate-size exceptionClass="org.mule.module.apikit.exception.NotFoundException" value="#[payload]" min="1" doc:name="Validation"/>
+                <set-payload value="#[payload.get(0)]" doc:name="Get First Result"/>
+                <json:object-to-json-transformer encoding="UTF-8" mimeType="application/json" doc:name="Object to JSON"/>
+                <set-property propertyName="ETag" value="#[flowVars.copyPayload.hashCode()]" doc:name="Set Etag in Header"/>
+                <set-payload value="{  &quot;house&quot;: #[payload] }" encoding="UTF-8" mimeType="application/json" doc:name="Set Payload"/>
+            </otherwise>
+        </choice>
+    </flow>
+    <flow name="post:/houses:application/json:api-imowebcom-config">
+        <db:insert config-ref="MySQL_Configuration" autoGeneratedKeys="true" doc:name="Insert House">
+            <db:parameterized-query><![CDATA[INSERT INTO houses (street, number, complement, neighborhood, city, state, country, title, description, phone, price) VALUES (#[json:/street], #[json:/number], #[json:/complement], #[json:/neighborhood], #[json:/city], #[json:/state], #[json:/country], #[json:/title], #[json:/description], #[json:/phone], #[json:/price])]]></db:parameterized-query>
+        </db:insert>
+        <set-property propertyName="Location" value="localhost:${http.port}/api/houses/#[payload.get(0).get('GENERATED_KEY')]" doc:name="Set Location in Header"/>
+    </flow>
+    <flow name="put:/houses/{houseId}:application/json:api-imowebcom-config">
+        <db:update config-ref="MySQL_Configuration" doc:name="Update House">
+            <db:parameterized-query><![CDATA[UPDATE houses SET street=#[json:/street], number=#[json:/number], complement=#[json:/complement], neighborhood=#[json:/neighborhood], city=#[json:/city], state=#[json:/state], country=#[json:/country], title=#[json:/title], description=#[json:/description], phone=#[json:/phone], price=#[json:/price] WHERE id=#[flowVars.houseId]]]></db:parameterized-query>
+        </db:update>
+        <validation:is-true expression="#[payload != false]" doc:name="Has the house been upgraded?"/>
+        <db:select config-ref="MySQL_Configuration" doc:name="Select Specific House">
+            <db:parameterized-query><![CDATA[SELECT * FROM houses WHERE id=#[flowVars.houseId]]]></db:parameterized-query>
+        </db:select>
+        <set-property propertyName="ETag" value="#[payload.hashCode()]" doc:name="Set ETag in Header"/>
+    </flow>
+    <flow name="delete:/houses/{houseId}:api-imowebcom-config">
+        <db:delete config-ref="MySQL_Configuration" doc:name="Delete house">
+            <db:parameterized-query><![CDATA[DELETE FROM houses WHERE id=#[flowVars.houseId]]]></db:parameterized-query>
+        </db:delete>
+        <validation:is-true exceptionClass="org.mule.module.apikit.exception.NotFoundException" expression="#[payload != false]" doc:name="Validation"/>
+    </flow>
+    <apikit:mapping-exception-strategy name="api-imowebcom-apiKitGlobalExceptionMapping">
+        <apikit:mapping statusCode="400">
+            <apikit:exception value="org.mule.module.apikit.exception.BadRequestException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property"/>
+            <set-payload value="{ &quot;message&quot;: #[exception.getMessage()] }" doc:name="Set Payload"/>
+        </apikit:mapping>
+        <apikit:mapping statusCode="404">
+            <apikit:exception value="org.mule.module.apikit.exception.NotFoundException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property"/>
+            <set-payload value="{ &quot;message&quot;: #[exception.getMessage()] }" doc:name="Set Payload"/>
+        </apikit:mapping>
+        <apikit:mapping statusCode="405">
+            <apikit:exception value="org.mule.module.apikit.exception.MethodNotAllowedException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property"/>
+            <set-payload value="{ &quot;message&quot;: &quot;Method not allowed&quot; }" doc:name="Set Payload"/>
+        </apikit:mapping>
+        <apikit:mapping statusCode="406">
+            <apikit:exception value="org.mule.module.apikit.exception.NotAcceptableException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property"/>
+            <set-payload value="{ &quot;message&quot;: &quot;Not acceptable&quot; }" doc:name="Set Payload"/>
+        </apikit:mapping>
+        <apikit:mapping statusCode="415">
+            <apikit:exception value="org.mule.module.apikit.exception.UnsupportedMediaTypeException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property"/>
+            <set-payload value="{ &quot;message&quot;: &quot;Unsupported media type&quot; }" doc:name="Set Payload"/>
+        </apikit:mapping>
+    </apikit:mapping-exception-strategy>
+</mule>

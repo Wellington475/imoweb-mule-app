@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:mock="http://www.mulesoft.org/schema/mule/mock" xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:munit="http://www.mulesoft.org/schema/mule/munit" xmlns:spring="http://www.springframework.org/schema/beans" xmlns:core="http://www.mulesoft.org/schema/mule/core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd
+http://www.mulesoft.org/schema/mule/mock http://www.mulesoft.org/schema/mule/mock/current/mule-mock.xsd">
+    <munit:config name="munit" doc:name="MUnit configuration" mock-connectors="false" mock-inbounds="false"/>
+    <spring:beans>
+        <spring:import resource="classpath:api-imowebcom.xml"/>
+    </spring:beans>
+    <http:request-config name="HTTP_Request_Configuration" host="${http.host}" port="${http.port}" basePath="/api" doc:name="HTTP Request Configuration"/>
+    <sub-flow name="houses-test-suiteSub_Flow">
+        <scripting:component doc:name="Select All Houses">
+            <scripting:script engine="Groovy" name="select-houses"><![CDATA[LinkedList<org.mule.util.CaseInsensitiveHashMap> list = new LinkedList();
+org.mule.util.CaseInsensitiveHashMap<String, Object> first = new org.mule.util.CaseInsensitiveHashMap();
+org.mule.util.CaseInsensitiveHashMap<String, Object> second = new org.mule.util.CaseInsensitiveHashMap();
+
+first.put("phone", "55 11 98376-1817");
+first.put("title", "Casa a venda próximo à Avenida Paulista");
+first.put("street", "Altazar Santos");
+first.put("complement", "Casa A");
+first.put("id", 1);
+first.put("country", "Brasil");
+first.put("price", 230000);
+first.put("neighborhood", "Aclimação");
+first.put("description", "Sobrado com 1 sala, 1 cozinha");
+first.put("state", "São Paulo");
+first.put("city", "São Paulo");
+first.put("number", "2277");
+
+second.put("phone", "55 11 98376-1817");
+second.put("title", "Casa 2 a venda próximo à Avenida Paulista");
+second.put("street", "Altazar Santos 2");
+second.put("complement", "Casa 2-A");
+second.put("id", 2);
+second.put("country", "Brasil");
+second.put("price", 230000);
+second.put("neighborhood", "Aclimação");
+second.put("description", "Sobrado com 1 sala, 1 cozinha");
+second.put("state", "São Paulo");
+second.put("city", "São Paulo");
+second.put("number", "2277");
+
+list.add(first);
+list.add(second);
+
+return list;]]></scripting:script>
+        </scripting:component>
+        <scripting:component doc:name="Select Specific House">
+            <scripting:script engine="Groovy" name="select-house"><![CDATA[LinkedList<org.mule.util.CaseInsensitiveHashMap> list = new LinkedList();
+org.mule.util.CaseInsensitiveHashMap<String, Object> first = new org.mule.util.CaseInsensitiveHashMap();
+
+first.put("phone", "55 11 98376-1817");
+first.put("title", "Casa a venda próximo à Avenida Paulista");
+first.put("street", "Altazar Santos");
+first.put("complement", "Casa A");
+first.put("id", 1);
+first.put("country", "Brasil");
+first.put("price", 230000);
+first.put("neighborhood", "Aclimação");
+first.put("description", "Sobrado com 1 sala, 1 cozinha");
+first.put("state", "São Paulo");
+first.put("city", "São Paulo");
+first.put("number", "2277");
+
+list.add(first);
+
+return list;]]></scripting:script>
+        </scripting:component>
+        <scripting:component doc:name="Insert House">
+            <scripting:script engine="Groovy" name="insert-house"><![CDATA[LinkedList<org.mule.util.CaseInsensitiveHashMap> list = new LinkedList();
+org.mule.util.CaseInsensitiveHashMap<String, Object> first = new org.mule.util.CaseInsensitiveHashMap();
+
+first.put("GENERATED_KEY", 1);
+list.add(first);
+
+return list;]]></scripting:script>
+        </scripting:component>
+    </sub-flow>
+    <munit:test name="new-test-suite-get:/houses:api-imowebcom-configTest" description="Test">
+        <mock:when doc:name="Mock Select All Houses" messageProcessor=".*:.*">
+            <mock:with-attributes>
+                <mock:with-attribute name="doc:name" whereValue="#['Select All House']"/>
+            </mock:with-attributes>
+            <mock:then-return payload="#[resultOfScript('select-houses')]"/>
+        </mock:when>
+        <http:request config-ref="HTTP_Request_Configuration" path="/houses" method="GET" doc:name="HTTP"/>
+        <munit:assert-true message="The HTTP Status Code is not correct" condition="#[messageInboundProperty('http.status').is(eq(200))]" doc:name="Assert HTTP Status Code"/>
+        <munit:assert-not-null message="The Payload is NULL" doc:name="Assert Not Null Payload"/>
+    </munit:test>
+    <munit:test name="new-test-suite-get:/houses/{houseId}:api-imowebcom-configTest" description="Test">
+        <mock:when messageProcessor=".*:.*" doc:name="Mock Select Specific House">
+            <mock:with-attributes>
+                <mock:with-attribute name="doc:name" whereValue="#['Select Specific House']"/>
+            </mock:with-attributes>
+            <mock:then-return payload="#[resultOfScript('select-house')]"/>
+        </mock:when>
+        <http:request config-ref="HTTP_Request_Configuration" path="/houses/{houseId}" method="GET" doc:name="HTTP">
+            <http:request-builder>
+                <http:uri-param paramName="houseId" value="1"/>
+                <http:header headerName="ETag" value="123"/>
+            </http:request-builder>
+        </http:request>
+        <munit:assert-true message="The HTTP status code is not correct" condition="#[messageInboundProperty('http.status').is(eq(200))]" doc:name="Assert HTTP Status Code"/>
+        <munit:assert-not-null message="The payload is NULL" doc:name="Assert Not Null Payload"/>
+    </munit:test>
+    <munit:test name="new-test-suite-post:/houses:application/json:api-imowebcom-configTest" description="Test">
+        <mock:when messageProcessor=".*:.*" doc:name="Mock Insert House">
+            <mock:with-attributes>
+                <mock:with-attribute name="doc:name" whereValue="#['Insert House']"/>
+            </mock:with-attributes>
+            <mock:then-return payload="#[resultOfScript('insert-house')]"/>
+        </mock:when>
+        <set-payload value="{
+  &quot;street&quot;: &quot;Alameda Santos&quot;,
+  &quot;number&quot;: &quot;2277&quot;,
+  &quot;complement&quot;: &quot;Casa A&quot;,
+  &quot;neighborhood&quot;: &quot;Aclima&#231;&#227;o&quot;,
+  &quot;city&quot;: &quot;S&#227;o Paulo&quot;,
+  &quot;state&quot;: &quot;S&#227;o Paulo&quot;,
+  &quot;country&quot;: &quot;Brasil&quot;,
+  &quot;title&quot;: &quot;Casa a venda pr&#243;ximo &#224; Avenida Paulista&quot;,
+  &quot;description&quot;: &quot;Sobrado com 1 sala, 1 cozinha&quot;,
+  &quot;phone&quot;: &quot;55 11 98376-1817&quot;,
+  &quot;price&quot;: 230000
+}" doc:name="Set Payload"/>
+        <http:request config-ref="HTTP_Request_Configuration" path="/houses" method="POST" doc:name="HTTP">
+            <http:request-builder>
+                <http:header headerName="X-Authentication" value="40938430974-fneifn-48303f-333-efe"/>
+                <http:header headerName="Content-Type" value="application/json"/>
+            </http:request-builder>
+        </http:request>
+        <munit:assert-true message="The HTTP status code is not correct" condition="#[messageInboundProperty('http.status').is(eq(201))]" doc:name="Assert HTTP Status Code"/>
+    </munit:test>
+    <munit:test name="new-test-suite-put:/houses/{houseId}:application/json:api-imowebcom-configTest" description="Test">
+        <mock:when messageProcessor=".*:.*" doc:name="Mock Update House">
+            <mock:with-attributes>
+                <mock:with-attribute name="doc:name" whereValue="#['Update House']"/>
+            </mock:with-attributes>
+            <mock:then-return payload="#[1]"/>
+        </mock:when>
+        <set-payload value="{
+  &quot;street&quot;: &quot;Altazar Santos&quot;,
+  &quot;number&quot;: &quot;2277&quot;,
+  &quot;complement&quot;: &quot;Casa A&quot;,
+  &quot;neighborhood&quot;: &quot;Aclima&#231;&#227;o&quot;,
+  &quot;city&quot;: &quot;S&#227;o Paulo&quot;,
+  &quot;state&quot;: &quot;S&#227;o Paulo&quot;,
+  &quot;coutry&quot;: &quot;Brasil&quot;,
+  &quot;title&quot;: &quot;Casa a venda pr&#243;ximo &#224; Avenida Paulista&quot;,
+  &quot;description&quot;: &quot;Sobrado com 1 sala, 1 cozinha&quot;,
+  &quot;phone&quot;: &quot;55 11 98376-1817&quot;,
+  &quot;price&quot;: 230000
+}" doc:name="Set Payload"/>
+        <http:request config-ref="HTTP_Request_Configuration" path="/houses/{houseId}" method="PUT" doc:name="HTTP">
+            <http:request-builder>
+                <http:uri-param paramName="houseId" value="1"/>
+                <http:header headerName="Content-Type" value="application/json"/>
+                <http:header headerName="X-Authentication" value="Auth"/>
+                <http:header headerName="ETag" value="123"/>
+            </http:request-builder>
+        </http:request>
+        <munit:assert-true message="The HTTP status code is not correct" condition="#[messageInboundProperty('http.status').is(eq(204))]" doc:name="Assert HTTP Status Code"/>
+    </munit:test>
+    <munit:test name="new-test-suite-delete:/houses/{houseId}:api-imowebcom-configTest" description="Test">
+        <mock:when messageProcessor=".*:.*" doc:name="Mock Delete House">
+            <mock:with-attributes>
+                <mock:with-attribute name="doc:name" whereValue="#['Delete house']"/>
+            </mock:with-attributes>
+            <mock:then-return payload="#[1]"/>
+        </mock:when>
+        <http:request config-ref="HTTP_Request_Configuration" path="/houses/{houseId}" method="DELETE" doc:name="HTTP">
+            <http:request-builder>
+                <http:uri-param paramName="houseId" value="1"/>
+                <http:header headerName="Content-Type" value="application/json"/>
+                <http:header headerName="X-Authentication" value="Auth"/>
+            </http:request-builder>
+        </http:request>
+        <munit:assert-true message="The HTTP status code is not correct" condition="#[messageInboundProperty('http.status').is(eq(204))]" doc:name="Assert HTTP Status Code"/>
+    </munit:test>
+    <munit:test name="houses-test-suite404-not-foundTest" description="MUnit Test">
+        <http:request config-ref="HTTP_Request_Configuration" path="/not-found" method="GET" doc:name="HTTP">
+            <http:success-status-code-validator values="404"/>
+        </http:request>
+        <munit:assert-true message="The HTTP status code is not correct" condition="#[messageInboundProperty('http.status').is(eq(404))]" doc:name="AssertHTTP Status Code"/>
+    </munit:test>
+    <munit:test name="houses-test-suite-405-method-not-allowedTest" description="MUnit Test">
+        <http:request config-ref="HTTP_Request_Configuration" path="/houses" method="PATCH" doc:name="HTTP">
+            <http:success-status-code-validator values="405"/>
+        </http:request>
+        <munit:assert-true message="The HTTP Status Code is not correct" condition="#[messageInboundProperty('http.status').is(eq(405))]" doc:name="Assert HTTP Status Code"/>
+    </munit:test>
+    <munit:test name="houses-test-suite-406-not-acceptableTest" description="MUnit Test">
+        <mock:throw-an exception-ref="#[new org.mule.module.apikit.exception.NotAcceptableException()]" whenCalling=".*:.*" doc:name="Throw an Exception 406">
+            <mock:with-attributes>
+                <mock:with-attribute name="name" whereValue="get:/houses:api-imowebcom-config"/>
+            </mock:with-attributes>
+        </mock:throw-an>
+        <http:request config-ref="HTTP_Request_Configuration" path="/houses" method="GET" doc:name="HTTP">
+            <http:success-status-code-validator values="406"/>
+        </http:request>
+        <munit:assert-true message="The HTTP status code is not correct" condition="#[messageInboundProperty('http.status').is(eq(406))]" doc:name="Assert HTTP Status Code"/>
+    </munit:test>
+    <munit:test name="houses-test-suite-415-unsupported-media-typeTest" description="MUnit Test">
+        <mock:throw-an exception-ref="#[new org.mule.module.apikit.exception.UnsupportedMediaTypeException()]" whenCalling=".*:.*" doc:name="Throw an Exception 415">
+            <mock:with-attributes>
+                <mock:with-attribute name="doc:name" whereValue="#['Select All House']"/>
+            </mock:with-attributes>
+        </mock:throw-an>
+        <http:request config-ref="HTTP_Request_Configuration" path="/houses" method="GET" doc:name="HTTP">
+            <http:success-status-code-validator values="415"/>
+        </http:request>
+        <munit:assert-true message="The HTTP status code is not correct" condition="#[messageInboundProperty('http.status').is(eq(415))]" doc:name="Assert HTTP Status Code"/>
+    </munit:test>
+</mule>
